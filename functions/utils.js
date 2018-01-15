@@ -23,7 +23,12 @@ function isValidSlashRequest(req){
   }
 }
 
-function isValidActionRequest(req){
+function isValidAdminRequest(req) {
+    let token = req.query.token || req.header('token') || '';
+    return isValidToken(token);
+}
+
+function isValidActionRequest(req) {
   if (req.body && req.body.context && isValidToken(req.body.context.token)) {
     return true;
   } else {
@@ -88,6 +93,7 @@ module.exports = {
   deepCopy,
   isValidSlashRequest,
   isValidActionRequest,
+  isValidAdminRequest,
   buildAction,
   isRequestorOwnerOfPoll,
   summarizeTodos,

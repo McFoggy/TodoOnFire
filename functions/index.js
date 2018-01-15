@@ -381,6 +381,11 @@ exports.todoClose = functions.https.onRequest((req, res) => {
 });
 
 exports.cleanAll = functions.https.onRequest((req, res) => {
+    if (!utils.isValidAdminRequest(req)) {
+        console.error('Could not find token to proceed for cleaning database');
+        return res.status(401).send('Invalid request or missing token');
+    }
+    
     admin.database().ref('/todos').remove().then(() => {
         res.set('Content-Type', 'text/plain');
         return res.status(200).send('done');
@@ -392,6 +397,11 @@ exports.cleanAll = functions.https.onRequest((req, res) => {
 });
 
 exports.readAll = functions.https.onRequest((req, res) => {
+    if (!utils.isValidAdminRequest(req)) {
+        console.error('Could not find token to proceed for reading database');
+        return res.status(401).send('Invalid request or missing token');
+    }
+
     admin.database().ref('/todos').once('value').then((snapshot) => {
         if (snapshot.exists()) {
             res.set('Content-Type', 'application/json');
