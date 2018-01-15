@@ -373,8 +373,7 @@ exports.todoClose = functions.https.onRequest((req, res) => {
             const failureMessage = failure?failure:'unknown failure';
             console.error('Cannot close: ' + failureMessage, failure);
             const returnObject = {
-                response_type: "ephemeral",
-                text: `Cannot complete task[${key}]: ${failureMessage}`
+                ephemeral_text: `Cannot complete task[${key}]: ${failureMessage}`
             };
             res.set('Content-Type', 'application/json');
             return res.status(200).send(JSON.stringify(returnObject));
