@@ -78,7 +78,3 @@ The resulting Firebase environment config should look like:
 
 ### Tests
 TODO
-
-### Deploying slash command to multiple mattermost teams
- 
- 
