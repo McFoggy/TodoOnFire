@@ -1,15 +1,14 @@
-# MattermostOnFire
-[![Build Status](https://travis-ci.org/jedfonner/MattermostOnFire.svg?branch=master)](https://travis-ci.org/jedfonner/MattermostOnFire)
+# TodoOnFire
+[![Build Status](https://travis-ci.org/McFoggy/TodoOnFire.svg?branch=master)](https://travis-ci.org/McFoggy/TodoOnFire)
 
-Backend code for powering a Mattermost [slash command](https://docs.mattermost.com/developer/slash-commands.html) that creates an interactive poll. Contains Firebase Cloud Functions that connect [Mattermost Interactive Buttons](https://docs.mattermost.com/developer/interactive-message-buttons.html) with the Firebase Realtime Database.
+Backend code for powering a Mattermost [slash command](https://docs.mattermost.com/developer/slash-commands.html) that allow to create, view & perform _todos/tasks_.
+
+This project has been greatly inspired by [Jed Fonner](https://github.com/jedfonner) work on his [vote/poll application](https://github.com/jedfonner/MattermostOnFire) for Mattermost.  
 
 ## What does this do?
 Watch the video:
 
-[![Demo](http://img.youtube.com/vi/PdxepG_h0Xs/0.jpg)](http://www.youtube.com/watch?v=PdxepG_h0Xs "Mattermost on Fire Demo")
-
-## How does it work?
-![Diagram](/info/diagram.png "MattermostonFire Diagram")
+[![Demo](http://img.youtube.com/vi/rWsJbsyunOE/0.jpg)](https://youtu.be/rWsJbsyunOE "TodoOnFire Mattermost demo")
 
 ## Set up
 Setting this up requires doing some initial Firebase setup, then doing some initial Mattermost setup, then wiring the two systems together.
@@ -24,7 +23,7 @@ Setting this up requires doing some initial Firebase setup, then doing some init
 1. Set the Firebase Functions base url (e.g., https://us-central1-PROJECTID.cloudfunctions.net) as a Firebase environment variable by running `firebase functions:config:set functions.baseurl="your functions base url"` (starting with https:// and ending without a trailing slash)
 
 ### Initial Mattermost Setup
-1. Create a new Slash command in Mattermost (I suggest calling it something short, like "poll" or "survey")
+1. Create a new Slash command in Mattermost (I suggest calling it something short, like "todo" or "task")
 1. Select "POST" for Request Method
 1. Fill in a dummy Request URL for now, we'll come back and change this in a bit.
 1. Fill out the rest of the Slash command configuration as you please, then save
@@ -45,26 +44,7 @@ Setting this up requires doing some initial Firebase setup, then doing some init
 }
 ```
 3. Deploy your project by running `firebase deploy`.
-4. When it finishes deploying, it will log the URL for each Function. Note the "Function URL" for `slashStart` (e.g., https://us-central1-PROJECTID.cloudfunctions.net/slashStart)
-
-### Finish Mattermost Setup
-1. Edit your Mattermost Slash command and update the Request URL to be the URL of your Firebase Functions `slashStart` function
-
-🎉  ALL DONE!
-
-## Runtime Monitoring
-* You can review the logs for the functions via the Functions > Logs interface of the Firebase Console
-* You can introspect the data being generated via the Database interface of the Firebase Console
-
-## Developing
-
-### Running Locally
-* See https://firebase.google.com/docs/functions/local-emulator
-
-### Tests
-1. Run `npm run test` in the _functions_ directory to ensure that your changes haven't broken any of the functions.
-
-### Deploying slash command to multiple mattermost teams
+4. When it finishes deploying, it will log the URL for each Function. Note the "Function URL" for `slashTodo` (e.g., https://us-central1-PROJECTID.cloudfunctions.net/slashTodo)
 
 On a single installation, if you have multiple mattermost teams and want to use the slash command on each, then you have to register several tokens (one for each slash command created).
 For that you can define token to conatin several command id by separating them using a comma `firebase functions:config:set mattermost.token="token1,token2,token3"`
@@ -81,5 +61,24 @@ The resulting Firebase environment config should look like:
   }
 }
 ```
+
+### Finish Mattermost Setup
+1. Edit your Mattermost Slash command and update the Request URL to be the URL of your Firebase Functions `slashTodo` function
+
+🎉  ALL DONE!
+
+## Runtime Monitoring
+* You can review the logs for the functions via the Functions > Logs interface of the Firebase Console
+* You can introspect the data being generated via the Database interface of the Firebase Console
+
+## Developing
+
+### Running Locally
+* See https://firebase.google.com/docs/functions/local-emulator
+
+### Tests
+TODO
+
+### Deploying slash command to multiple mattermost teams
  
  
