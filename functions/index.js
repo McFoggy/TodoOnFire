@@ -267,7 +267,7 @@ function add(httpReq, httpRes, todoTitle, todoDescription) {
       .then((node) => {
         const returnObject = {
           response_type: 'ephemeral',
-          text: 'new task created under key: ' + node.key
+          text: 'new task created with id: ' + node.id
         };
         httpRes.set('Content-Type', 'application/json');
         return httpRes.status(200).send(JSON.stringify(returnObject));
@@ -298,11 +298,6 @@ function buildTodoResponseDetail(todo, token) {
                         "short": false,
                         "title": "Creation date",
                         "value": todo.createdAt
-                    },
-                    {
-                        "short": true,
-                        "title": "Key",
-                        "value": todo.key
                     },
                     {
                         "short": true,
@@ -366,40 +361,6 @@ function detail(httpReq, httpRes, id) {
         });
 }
 
-function detailByKey(httpReq, httpRes, key) {
-    const teamId = httpReq.body.team_id;
-    const channelId =  httpReq.body.channel_id;
-
-    if (!key) {
-        httpRes.set('Content-Type', 'application/json');
-        return httpRes.status(400).send(JSON.stringify({error: 'no key given to retrieve todo item'}));
-    }
-    let todoKey = key.trim();
-
-    return channelReference(teamId, channelId)
-        .then(todosReferenceFromChannelReference)
-        .then((ref) => {
-            let todoRef = ref.child(todoKey);
-            console.log(`reading todo by key[${todoKey}]: ${todoRef.toString()}`);
-            return todoRef.once('value');
-        })
-        .then(snapshot => todoFromSnapshot(snapshot, httpReq.body.token, 'key', todoKey))
-        .then(todo => {
-            console.log('returning to mattermost', todo);
-            httpRes.set('Content-Type', 'application/json');
-            return httpRes.status(200).send(JSON.stringify(todo));
-        })
-        .catch(reason => {
-            console.error('cannot provide todo detail', reason);
-            const returnObject = {
-                response_type: 'ephemeral',
-                text: `No task found with key[${todoKey}]`
-            };
-            httpRes.set('Content-Type', 'application/json');
-            return httpRes.status(200).send(JSON.stringify(returnObject));
-        });
-}
-
 exports.slashTodo = functions.https.onRequest((req, res) => {
     console.log('Received body: ', req.body);
 
@@ -439,10 +400,6 @@ exports.slashTodo = functions.https.onRequest((req, res) => {
             const message = textPieces[1].trim();
             return askToken(req, res, message);
         }
-        // case "key": {
-        //     const key = textPieces[1];
-        //     return detailByKey(req, res, key);
-        // }
         default: {
             if (command.trim().length > 0) {
                 return detail(req, res, command);
@@ -463,6 +420,7 @@ exports.todoClose = functions.https.onRequest((req, res) => {
     const teamId = req.body.context.teamId;
     const channelId = req.body.context.channelId;
     const key = req.body.context.key;
+    const id = req.body.context.id;
 
     return channelReference(teamId, channelId)
         .then(todosReferenceFromChannelReference)
@@ -479,12 +437,12 @@ exports.todoClose = functions.https.onRequest((req, res) => {
                 });
         })
         .then(() => {
-            let completedMessage = "Task has been completed on " + new Date().toISOString();
+            let completedMessage = `Task ${id} has been completed on ` + new Date().toISOString();
             const returnObject = {
                 update: {
                     message: completedMessage
                 },
-                ephemeral_text: `You completed the task[${key}]!`
+                ephemeral_text: `You completed the task[${id}]!`
             };
             console.log('Closed: ', returnObject);
             res.set('Content-Type', 'application/json');
@@ -494,45 +452,9 @@ exports.todoClose = functions.https.onRequest((req, res) => {
             const failureMessage = failure?failure:'unknown failure';
             console.error('Cannot close: ' + failureMessage, failure);
             const returnObject = {
-                ephemeral_text: `Cannot complete task[${key}]: ${failureMessage}`
+                ephemeral_text: `Cannot complete task[${id}]: ${failureMessage}`
             };
             res.set('Content-Type', 'application/json');
             return res.status(200).send(JSON.stringify(returnObject));
         });
-});
-
-exports.cleanAll = functions.https.onRequest((req, res) => {
-    if (!utils.isValidAdminRequest(req)) {
-        console.error('Could not find token to proceed for cleaning database');
-        return res.status(401).send('Invalid request or missing token');
-    }
-    
-    admin.database().ref('/todos').remove().then(() => {
-        res.set('Content-Type', 'text/plain');
-        return res.status(200).send('done');
-
-    }).catch(err => {
-        res.set('Content-Type', 'text/plain');
-        return res.status(400).send('error:' + JSON.stringify(err));
-    });
-});
-
-exports.readAll = functions.https.onRequest((req, res) => {
-    if (!utils.isValidAdminRequest(req)) {
-        console.error('Could not find token to proceed for reading database');
-        return res.status(401).send('Invalid request or missing token');
-    }
-
-    admin.database().ref('/todos').once('value').then((snapshot) => {
-        if (snapshot.exists()) {
-            res.set('Content-Type', 'application/json');
-            return res.status(200).send(JSON.stringify(snapshot.val()));
-        } else {
-            res.set('Content-Type', 'text/plain');
-            return res.status(204).send('no content');
-        }
-    }).catch(err => {
-        res.set('Content-Type', 'text/plain');
-        return res.status(400).send('error:' + JSON.stringify(err));
-    });
 });

@@ -125,10 +125,10 @@ function summarizeTodos(todos) {
         lines.push('---');
         lines.push('### Tasks of channel');
         lines.push('');
-        lines.push('| ID | Task | Created By | Created At | Key |')
-        lines.push('|:-------:|:--------|:-------:|:-------:|:-------:|')
+        lines.push('| ID | Task | Created By | Created At')
+        lines.push('|:-------:|:--------|:-------:|:-------:|')
         todos.forEach((todo, index) => {
-          lines.push(`| ${todo.id||'?'} | ${todo.title} | ${todo.createdBy} | ${todo.createdAt} | ${todo.key} |`);
+          lines.push(`| ${todo.id||'?'} | ${todo.title} | ${todo.createdBy} | ${todo.createdAt} |`);
         });
         lines.push('---');
         return multiline(...lines);
