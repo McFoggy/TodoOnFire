@@ -47,7 +47,7 @@ Setting this up requires doing some initial Firebase setup, then doing some init
 4. When it finishes deploying, it will log the URL for each Function. Note the "Function URL" for `slashTodo` (e.g., https://us-central1-PROJECTID.cloudfunctions.net/slashTodo)
 
 On a single installation, if you have multiple mattermost teams and want to use the slash command on each, then you have to register several tokens (one for each slash command created).
-For that you can define token to conatin several command id by separating them using a comma `firebase functions:config:set mattermost.token="token1,token2,token3"`
+For that you can define token to contain several command id by separating them using a comma `firebase functions:config:set mattermost.token="token1,token2,token3"`
 
 The resulting Firebase environment config should look like:
 ```
@@ -66,6 +66,40 @@ The resulting Firebase environment config should look like:
 1. Edit your Mattermost Slash command and update the Request URL to be the URL of your Firebase Functions `slashTodo` function
 
 🎉  ALL DONE!
+
+## Runtime configuration
+
+### Tokens: security to close tasks in a channel
+
+One of the feature of the service is to allow to remove/close tasks even if you are not the author of the task.
+
+This is done via the command: `/todo remove | [ ID | ALL ] | TOKEN`  
+where TOKEN is a valid token configured at:
+- channel level  
+- team level  
+- global level
+
+Using a channel level token, one can close any task of the channel.  
+Using a team level token, one can close any task of any channel of the team.
+Using a global level token, one can close any task anywhere in the system.
+
+### Global tokens
+
+Those are the ones defined previously under the key: `mattermost.token`
+
+#### Team token
+
+You can define one or more token per team (separate them with commas), by using the _teamId_
+
+- configuring team tokens: `firebase functions:config:set mattermost.team.TEAMID="token1,token2"`  
+- updating the application: `firebase deploy --only functions`  
+
+#### Channel token
+
+You can define one or more token per channel (separate them with commas), by using the _teamId_ & _channelId_
+
+- configuring channel tokens: `firebase functions:config:set mattermost.team.TEAMID.channel.CHANNELID="token1,token2"`  
+- updating the application: `firebase deploy --only functions`  
 
 ## Runtime Monitoring
 * You can review the logs for the functions via the Functions > Logs interface of the Firebase Console

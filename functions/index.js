@@ -3,6 +3,9 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const utils = require('./utils');
+const _ = require('lodash');
+
+const ALL_KEYWORD = 'all';
 
 admin.initializeApp(functions.config().firebase);
 
@@ -12,6 +15,28 @@ function key(teamId, channelId) {
 
 function path(teamId, channelId) {
     return `/todos/${teamId}-${channelId}`;
+}
+
+function todoById(todos, id) {
+    return new Promise((resolve, reject) => {
+        console.log('parsing todos', todos);
+
+        const todoKeys = todos ? Object.keys(todos): [];
+        let todoFound = null;
+        for (const todoKey of todoKeys) {
+            let todo = todos[todoKey];
+            if (todo.id === id) {
+                todoFound = todo;
+                break;
+            }
+        }
+
+        if (todoFound) {
+            resolve(todoFound);
+        } else {
+            reject(`no todo found with id[${id}]`);
+        }
+    });
 }
 
 function channelReference(teamId, channelId) {
@@ -64,6 +89,95 @@ function todosReferenceFromChannelReference(channelRef) {
     return channelRef.child("todos");
 }
 
+function askToken(httpReq, httpRes, message) {
+    let userMessage = message || 'no message provided';
+    let teamId = httpReq.body.team_id;
+    let channelId = httpReq.body.channel_id;
+    let username =  httpReq.body.user_name;
+    let channelName = httpReq.body.channel_name;
+    
+    let tokenConfigTarget = utils.adminTokenTarget();
+
+    if (tokenConfigTarget.mention || tokenConfigTarget.channel) {
+        let responseObject = {
+            channel: tokenConfigTarget.channel || channelName,
+            response_type: "in_channel",
+            text: utils.multiline(
+                `@channel ${tokenConfigTarget.mention || ''} @${username} requested an admin token.`,
+                `- team: \`${teamId}\``,
+                `- channel: \`${teamId}\``,
+                ``,
+                `### Message`,
+                userMessage
+            )
+        };
+
+        httpRes.set('Content-Type', 'application/json');
+        return httpRes.status(200).send(JSON.stringify(responseObject));
+    } else {
+        httpRes.set('Content-Type', 'application/json');
+        return httpRes.status(200).send(JSON.stringify(utils.ephemeralResponse(`no target defined for token request, contact your administrator`)));
+    }
+}
+
+function removeTodo(httpReq, httpRes, which, token) {
+    const teamId = httpReq.body.team_id;
+    const channelId = httpReq.body.channel_id;
+
+    if (!utils.isValidAdminToken(token, teamId, channelId)) {
+        return httpRes.status(401).send('Invalid request or missing token');
+    }
+    
+    if (ALL_KEYWORD === which) {
+        return channelReference(teamId, channelId)
+            .then(todosReferenceFromChannelReference)
+            .then((ref) => {
+                return ref.remove();
+            })
+            .then(() => {
+                httpRes.set('Content-Type', 'application/json');
+                return httpRes.status(200).send(JSON.stringify(utils.ephemeralResponse(`all tasks of channel removed`)));
+            })
+            .catch(reason => {
+                httpRes.set('Content-Type', 'application/json');
+                return httpRes.status(200).send(JSON.stringify(utils.ephemeralResponse(`cannot remove todos of channel: [${reason}]`)));
+            });
+    } else {
+        let id = Number.parseInt(which);
+        if (Number.isNaN(id)) {
+            httpRes.set('Content-Type', 'application/json');
+            return httpRes.status(200).send(JSON.stringify(utils.ephemeralResponse(`cannot remove todos with id: [${which}]`)));
+        }
+
+        return channelReference(teamId, channelId)
+            .then(todosReferenceFromChannelReference)
+            .then((refTodos) => {
+                return refTodos.once('value').then((snap) => snap.val());
+            })
+            .then((todos) => {
+                return todoById(todos, id);
+            })
+            .then((todo) => todo.key)
+            .then((key) => {
+                return channelReference(teamId, channelId)
+                    .then(todosReferenceFromChannelReference)
+                    .then((refTodos) => refTodos.child(key));
+            })
+            .then((todoRef) => {
+                console.log('about to remove:', todoRef.toString());
+                return todoRef.remove();
+            })
+            .then(() => {
+                httpRes.set('Content-Type', 'application/json');
+                return httpRes.status(200).send(JSON.stringify(utils.ephemeralResponse(`task ${id} has been removed`)));
+            })
+            .catch(reason => {
+                httpRes.set('Content-Type', 'application/json');
+                return httpRes.status(200).send(JSON.stringify(utils.ephemeralResponse(`cannot remove task ${id} from channel: [${reason}]`)));
+            });
+    }
+}
+
 function usage(httpRes) {
     const returnObject = {
         "response_type": "ephemeral",
@@ -73,9 +187,11 @@ function usage(httpRes) {
             '- `/todo list`: list todos of the current channel',
             '- `/todo add | TASK [| DESCRIPTION]` : add a todo item for TASK, optionally described by DESCRIPTION',
             '- `/todo ID` : prints details of task identified by the given ID',
-            '- `/todo key | KEY` : prints details of task identified by the given KEY'
+            '- `/todo remove | [ID or ALL] | TOKEN`: removes the todo with given ID or ALL. Token is either the channel token or a global one (team or system)'
         )
     };
+    // '- `/todo token | message`: asks the administrator to receive an admin token for this channel'
+
     httpRes.set('Content-Type', 'application/json');
     return httpRes.status(200).send(JSON.stringify(returnObject));
 }
@@ -223,19 +339,10 @@ function detail(httpReq, httpRes, id) {
             return ref.once('value');
         })
         .then((todosSnapshot) => {
-            const todos = todosSnapshot.val();
-            console.log('parsing todos', todos);
-
-            const todoKeys = todos ? Object.keys(todos): [];
             const idAsInt = parseInt(id, 10);
-            for (const todoKey of todoKeys) {
-                let todo = todos[todoKey];
-                if (todo.id === idAsInt) {
-                    return todo;
-                }
-            }
+            const todos = todosSnapshot.val();
             
-            throw `no todo found with id[${id}]`;
+            return todoById(todos, idAsInt);
         })
         // .then(ref => {
         //     let idAsInt = parseInt(id, 10);
@@ -254,12 +361,8 @@ function detail(httpReq, httpRes, id) {
         })
         .catch(reason => {
             console.error('cannot provide todo detail', reason);
-            const returnObject = {
-                response_type: 'ephemeral',
-                text: `No task found with id[${id}]`
-            };
             httpRes.set('Content-Type', 'application/json');
-            return httpRes.status(200).send(JSON.stringify(returnObject));
+            return httpRes.status(200).send(JSON.stringify(utils.ephemeralResponse(`No task found with id[${id}]`)));
         });
 }
 
@@ -314,20 +417,38 @@ exports.slashTodo = functions.https.onRequest((req, res) => {
     const command = textPieces[0].trim();
     console.info(`About to execute command: "${command}"`);
     switch (command) {
-        case "list":
+        case "list": {
             return list(req, res);
-        case "add":
+        }
+        case "remove": {
+            const which = (textPieces[1] || '').trim().toLowerCase();
+            const adminToken = (textPieces[2] || '').trim();
+            return removeTodo(req, res, which, adminToken);
+        }
+        // case "admin":
+        //     let adminCommand = textPieces[1].trim();
+        //     let which = (textPieces[2] || '').trim().toLowerCase();
+        //     let adminToken = textPieces[3].trim();
+        //     return doAdmin(req, res, adminCommand, which, adminToken);
+        case "add": {
             const task = textPieces[1].trim();
             const taskDescription = textPieces[2];
             return add(req, res, task, taskDescription);
-        case "key":
-            const key = textPieces[1];
-            return detailByKey(req, res, key);
-        default:
+        }
+        case "token": {
+            const message = textPieces[1].trim();
+            return askToken(req, res, message);
+        }
+        // case "key": {
+        //     const key = textPieces[1];
+        //     return detailByKey(req, res, key);
+        // }
+        default: {
             if (command.trim().length > 0) {
                 return detail(req, res, command);
             }
             return usage(res);
+        }
     }
 });
 
